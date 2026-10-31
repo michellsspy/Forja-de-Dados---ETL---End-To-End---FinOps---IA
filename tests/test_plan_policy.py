@@ -38,7 +38,7 @@ def resource(action="create", kind="jobs", name="forja_dev_teste"):
 
 def test_no_changes():
     """Um Bundle sem diffs e valido."""
-    assert policy.validate_plan(plan()) == {"create": 0, "update": 0}
+    assert policy.validate_plan(plan()) == {"create": 0, "update": 0, "skip": 0}
 
 
 def test_create_job():
@@ -104,3 +104,46 @@ def test_run_as_unknown_blocked(monkeypatch):
     p["new_state"]["value"]["run_as"] = {"service_principal_name": "id-prd"}
     with pytest.raises(policy.PlanRejected):
         policy.validate_plan(plan({key: p}))
+
+
+def test_skip_recurso_inalterado():
+    """Recurso sincronizado e aceito como no-op sem deploy."""
+    key = "resources.jobs.job_smoke_deploy"
+    result = policy.validate_plan(plan({
+        key: {"action": "skip", "remote_state": {
+            "job_id": 962077507374725,
+            "name": "forja_dev_smoke_deploy",
+        }}
+    }))
+    assert result == {"create": 0, "update": 0, "skip": 1}
+
+
+def test_skip_com_create_no_mesmo_plano():
+    """Um skip nao impede criar um novo Job no mesmo plano."""
+    p = plan({
+        "resources.jobs.job_smoke_deploy": {"action": "skip"},
+        "resources.jobs.job_novo": resource(),
+    })
+    assert policy.validate_plan(p) == {"create": 1, "update": 0, "skip": 1}
+
+
+def test_skip_com_diferenca_ativa_bloqueado():
+    """Skip nao pode ocultar campo com mudanca efetiva."""
+    key = "resources.jobs.job_smoke_deploy"
+    p = plan({key: {
+        "action": "skip",
+        "changes": {"name": {"action": "update"}},
+    }})
+    with pytest.raises(policy.PlanRejected):
+        policy.validate_plan(p)
+
+
+def test_skip_com_metadata_estrangeiro_bloqueado():
+    """Mesmo no-op deve rejeitar estado de outro Bundle."""
+    key = "resources.jobs.job_smoke_deploy"
+    p = plan({key: {"action": "skip", "remote_state": {
+        "deployment": {"metadata_file_path":
+            "/Workspace/.bundle/forja_de_dados/prd/state/metadata.json"}
+    }}})
+    with pytest.raises(policy.PlanRejected):
+        policy.validate_plan(p)

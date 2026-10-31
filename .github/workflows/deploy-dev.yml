@@ -4,7 +4,7 @@
 # OBJETIVO:
 #   Implantar Jobs e Pipelines Lakeflow em DEV a partir do GitHub Actions.
 #   Reutilizar o validador de plano em scripts/ci/validate_bundle_plan.py.
-#   Aceitar planos sem mudancas, sem executar deploy desnecessario.
+#   Aceitar plano vazio e recursos com acao skip sem executar deploy.
 # GATILHOS:
 #   - CI aprovado na branch main.
 #   - Execucao manual na branch main.
@@ -123,7 +123,14 @@ jobs:
 
           with open(sys.argv[1], encoding="utf-8") as arquivo:
               plano = json.load(arquivo)
-          print("has_changes=" + str(bool(plano["plan"])).lower())
+          # O plano Direct pode listar recursos sem alteracao com action='skip'.
+          # Somente create/update exige bundle deploy.
+          recursos = plano["plan"]
+          tem_alteracoes = any(
+              item.get("action") in ("create", "update")
+              for item in recursos.values()
+          )
+          print("has_changes=" + str(tem_alteracoes).lower())
           PY
 
       # 06. Aplicar exatamente o plano aprovado, somente quando necessario.
@@ -148,4 +155,3 @@ jobs:
           set -euo pipefail
           databricks bundle summary -t dev
           echo "Commit validado: $(git rev-parse HEAD)"
-
