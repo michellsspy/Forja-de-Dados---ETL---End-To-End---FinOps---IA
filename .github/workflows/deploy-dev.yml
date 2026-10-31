@@ -4,24 +4,20 @@
 # ARQUIVO: .github/workflows/deploy-dev.yml
 #
 # OBJETIVO:
-#   Validar o deployment DEV utilizando GitHub Actions,
-#   Databricks CLI e OAuth M2M.
-#
-# ETAPA ATUAL:
-#   Preflight: autenticacao, validacao, inventario e plano.
+#   Executar o preflight do deployment DEV.
+#   Validar autenticacao, Bundle e plano detalhado de alteracoes.
 #
 # IDENTIDADE:
 #   sp-forja-cicd-dev
 #
-# RESTRICOES:
-#   - Execucao exclusivamente manual.
-#   - Apenas na branch main.
-#   - Nenhum deploy realizado nesta versao.
-#   - Nenhum Job ou pipeline modificado.
-#   - Credenciais protegidas pelo GitHub Secrets.
+# SEGURANCA:
+#   - Execucao manual somente na branch main.
+#   - OAuth M2M via GitHub Secrets.
+#   - Nenhum deploy executado.
+#   - Nenhum recurso criado, alterado ou excluido.
 #
 # VERSIONAMENTO:
-#   GitHub - Forja de Dados
+#   GitHub / GitHub Actions
 # =============================================================================
 
 name: CD - Preflight Databricks DEV
@@ -43,7 +39,6 @@ jobs:
     if: github.ref == 'refs/heads/main'
 
     runs-on: ubuntu-latest
-
     timeout-minutes: 15
 
     env:
@@ -61,27 +56,25 @@ jobs:
         uses: actions/checkout@v4
 
       # -----------------------------------------------------------------------
-      # 02 - INSTALACAO DA DATABRICKS CLI
+      # 02 - DATABRICKS CLI
       # -----------------------------------------------------------------------
       - name: Instalar Databricks CLI
         uses: databricks/setup-cli@v1.20.0
 
       # -----------------------------------------------------------------------
-      # 03 - TESTE DE AUTENTICACAO
+      # 03 - AUTENTICACAO
       # -----------------------------------------------------------------------
       - name: Verificar autenticacao Databricks
         shell: bash
         run: |
           set -euo pipefail
 
-          echo "Verificando autenticacao OAuth M2M..."
-
           databricks jobs list --output json > /dev/null
 
-          echo "Autenticacao validada."
+          echo "Autenticacao OAuth M2M validada."
 
       # -----------------------------------------------------------------------
-      # 04 - VALIDACAO DECLARATIVA
+      # 04 - VALIDACAO DO BUNDLE
       # -----------------------------------------------------------------------
       - name: Validar Bundle DEV
         shell: bash
@@ -91,7 +84,7 @@ jobs:
           databricks bundle validate -t dev
 
       # -----------------------------------------------------------------------
-      # 05 - CONSULTA DOS RECURSOS EXISTENTES
+      # 05 - INVENTARIO DO DEPLOYMENT
       # -----------------------------------------------------------------------
       - name: Consultar recursos do Bundle
         shell: bash
@@ -101,17 +94,26 @@ jobs:
           databricks bundle summary -t dev
 
       # -----------------------------------------------------------------------
-      # 06 - PLANO DE IMPLANTACAO
+      # 06 - PLANO RESUMIDO
       # -----------------------------------------------------------------------
       - name: Gerar plano DEV
         shell: bash
         run: |
           set -euo pipefail
 
-          echo "FORJA DE DADOS - PLANO DEV"
-          echo "Nenhum recurso sera modificado."
-
           databricks bundle plan -t dev
 
-          echo "Preflight concluido."
-  
+      # -----------------------------------------------------------------------
+      # 07 - PLANO DETALHADO
+      # -----------------------------------------------------------------------
+      - name: Inspecionar diferencas do deployment
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          echo "FORJA DE DADOS - PLANO DETALHADO DEV"
+          echo "Operacao somente leitura."
+
+          databricks bundle plan -t dev -o json
+
+          echo "Inspecao concluida. Nenhum deploy executado."
