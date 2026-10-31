@@ -1,0 +1,47 @@
+
+# =============================================================================
+# PROJETO: Forja de Dados
+# ARQUIVO: resources/jobs/01_job_smoke.yml
+#
+# OBJETIVO:
+#   Validar a implantacao e execucao de um Lakeflow Job
+#   utilizando Databricks Declarative Automation Bundles.
+#
+# EXECUCAO:
+#   - Compute serverless.
+#   - Uma tarefa Notebook.
+#   - Execucao manual.
+#
+# SEGURANCA:
+#   - Nao acessa dados de negocio.
+#   - Nao altera tabelas.
+#   - Nao executa pipelines existentes.
+#
+# VERSIONAMENTO:
+#   GitHub / Declarative Automation Bundles
+# =============================================================================
+
+resources:
+  jobs:
+    job_smoke_deploy:
+
+      name: forja_${bundle.target}_smoke_deploy
+
+      description: >
+        Job de validacao do deployment da plataforma
+        Forja de Dados utilizando Databricks Bundles.
+
+      max_concurrent_runs: 1
+
+      tasks:
+        - task_key: validar_deployment
+
+          description: >
+            Executa o notebook de verificacao
+            do ambiente implantado.
+
+          notebook_task:
+            notebook_path: ../../src/control/smoke_deploy.py
+
+            base_parameters:
+              ambiente: ${bundle.target}

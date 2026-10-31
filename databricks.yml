@@ -4,31 +4,36 @@
 # ARQUIVO: databricks.yml
 #
 # OBJETIVO:
-#   Configurar os ambientes DEV, HML e PRD utilizando
-#   Databricks Declarative Automation Bundles.
+#   Configurar os ambientes DEV, HML e PRD.
+#   Registrar recursos declarativos de Lakeflow Jobs.
+#   Padronizar a implantacao via Databricks Bundles.
 #
 # ARQUITETURA:
-#   - Databricks / Unity Catalog
+#   - Databricks e Unity Catalog
 #   - Lakeflow Connect
 #   - Lakeflow Spark Declarative Pipelines
 #   - Lakeflow Jobs
 #   - Delta Lake Managed Tables
 #
 # CONTROLE DE VERSAO:
-#   GitHub - Git
+#   GitHub + GitHub Actions
 #
-# OBSERVACOES:
-#   - Workspace compartilhado entre os tres ambientes.
-#   - Isolamento logico por catalogos Unity Catalog.
-#   - DEV utiliza comportamento de desenvolvimento.
-#   - HML e PRD utilizam comportamento de producao.
-#   - HML e PRD possuem caminhos fixos de implantacao.
-#   - Nenhuma credencial e armazenada neste arquivo.
-#   - Catalogos serao provisionados posteriormente.
+# REGRAS:
+#   - Workspace compartilhado.
+#   - Isolamento logico por catalogos.
+#   - Nenhuma credencial neste arquivo.
+#   - Recursos definidos em arquivos separados.
 # =============================================================================
 
 bundle:
   name: forja_de_dados
+
+# =============================================================================
+# RECURSOS DECLARATIVOS
+# =============================================================================
+
+include:
+  - resources/jobs/*.yml
 
 # =============================================================================
 # VARIAVEIS GLOBAIS
@@ -45,14 +50,12 @@ variables:
     description: "Catalogo dos produtos analiticos"
 
 # =============================================================================
-# TARGETS - AMBIENTES
+# AMBIENTES
 # =============================================================================
 
 targets:
 
-  # ---------------------------------------------------------------------------
   # DEV - DESENVOLVIMENTO
-  # ---------------------------------------------------------------------------
   dev:
     default: true
     mode: development
@@ -62,9 +65,7 @@ targets:
       catalog_platform: forja_platform_dev
       catalog_analytics: forja_analytics_dev
 
-  # ---------------------------------------------------------------------------
   # HML - HOMOLOGACAO
-  # ---------------------------------------------------------------------------
   hml:
     mode: production
 
@@ -76,9 +77,7 @@ targets:
       catalog_platform: forja_platform_hml
       catalog_analytics: forja_analytics_hml
 
-  # ---------------------------------------------------------------------------
   # PRD - PRODUCAO
-  # ---------------------------------------------------------------------------
   prd:
     mode: production
 

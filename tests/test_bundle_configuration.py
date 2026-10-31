@@ -1,17 +1,18 @@
-
 """
 Projeto: Forja de Dados - ETL End to End - FinOps - IA
 Arquivo: tests/test_bundle_configuration.py
 
 Objetivo:
-    Validar a estrutura declarativa do Databricks Bundle.
+    Validar as configuracoes do Databricks Bundle
+    e a estrutura dos notebooks referenciados.
 
-Escopo:
-    - Nome do projeto.
-    - Existencia dos ambientes DEV, HML e PRD.
+Validacoes:
+    - Identificador do Bundle.
+    - Targets DEV, HML e PRD.
     - Modos de implantacao.
-    - Separacao dos catalogos.
-    - Caminhos fixos de HML e PRD.
+    - Isolamento dos catalogos.
+    - Caminhos de HML e PRD.
+    - Formato Databricks Notebook Source.
 
 Dependencias:
     pytest
@@ -21,8 +22,8 @@ Execucao:
     python -m pytest tests/test_bundle_configuration.py -v
 
 Observacao:
-    Estes testes validam convencoes do projeto, nao substituindo
-    a validacao oficial da Databricks CLI.
+    Complementa, mas nao substitui,
+    o comando databricks bundle validate.
 """
 
 from pathlib import Path
@@ -34,28 +35,32 @@ import yaml
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 BUNDLE_FILE = PROJECT_ROOT / "databricks.yml"
 
+SMOKE_NOTEBOOK = (
+    PROJECT_ROOT / "src" / "control" / "smoke_deploy.py"
+)
+
 
 @pytest.fixture(scope="module")
 def bundle_config():
-    """Carrega a configuracao principal do Databricks Bundle."""
+    """Carrega a configuracao principal do Bundle."""
     with BUNDLE_FILE.open("r", encoding="utf-8") as file:
         return yaml.safe_load(file)
 
 
 def test_bundle_name(bundle_config):
-    """Verifica o identificador oficial do projeto."""
+    """Valida o nome oficial do projeto."""
     assert bundle_config["bundle"]["name"] == "forja_de_dados"
 
 
 def test_required_targets(bundle_config):
-    """Verifica a existencia dos tres ambientes."""
+    """Valida os ambientes obrigatorios."""
     targets = bundle_config["targets"]
 
     assert set(targets) == {"dev", "hml", "prd"}
 
 
 def test_development_target(bundle_config):
-    """Verifica se DEV e o ambiente padrao."""
+    """Valida a configuracao de desenvolvimento."""
     dev = bundle_config["targets"]["dev"]
 
     assert dev["default"] is True
@@ -64,7 +69,7 @@ def test_development_target(bundle_config):
 
 @pytest.mark.parametrize("target", ["hml", "prd"])
 def test_stable_targets(bundle_config, target):
-    """Verifica o modo de implantacao de HML e PRD."""
+    """Valida os ambientes de homologacao e producao."""
     config = bundle_config["targets"][target]
 
     assert config["mode"] == "production"
@@ -77,7 +82,7 @@ def test_stable_targets(bundle_config, target):
 
 @pytest.mark.parametrize("target", ["dev", "hml", "prd"])
 def test_catalog_isolation(bundle_config, target):
-    """Verifica os catalogos especificos de cada ambiente."""
+    """Valida o isolamento logico por catalogos."""
     variables = bundle_config["targets"][target]["variables"]
 
     expected = {
@@ -87,3 +92,27 @@ def test_catalog_isolation(bundle_config, target):
     }
 
     assert variables == expected
+
+
+def test_notebook_source_format():
+    """
+    Valida o formato Databricks Notebook Source.
+
+    O arquivo precisa iniciar diretamente com o marcador
+    esperado, sem BOM ou comentarios anteriores.
+    """
+    assert SMOKE_NOTEBOOK.is_file(), (
+        f"Notebook nao encontrado: {SMOKE_NOTEBOOK}"
+    )
+
+    content = SMOKE_NOTEBOOK.read_bytes()
+
+    expected_header = b"# Databricks notebook source"
+
+    first_line = content.splitlines()[0] if content else b""
+
+    assert first_line == expected_header, (
+        "O arquivo smoke_deploy.py nao possui o marcador "
+        "Databricks notebook source na primeira linha, "
+        "ou contem caracteres invisiveis antes dele."
+    )
