@@ -4,8 +4,8 @@
 # ARQUIVO: databricks.yml
 #
 # OBJETIVO:
-#   Configurar os Databricks Declarative Automation Bundles
-#   para os ambientes DEV, HML e PRD.
+#   Configurar os ambientes DEV, HML e PRD utilizando
+#   Databricks Declarative Automation Bundles.
 #
 # ARQUITETURA:
 #   - Databricks e Unity Catalog
@@ -14,20 +14,21 @@
 #   - Lakeflow Jobs
 #   - Delta Lake Managed Tables
 #
-# VERSIONAMENTO:
-#   GitHub e GitHub Actions
+# CONTROLE DE VERSAO:
+#   GitHub / GitHub Actions
 #
 # DIRETRIZES:
-#   - Workspace compartilhado entre os ambientes.
+#   - Workspace compartilhado entre DEV, HML e PRD.
 #   - Isolamento logico por catalogos Unity Catalog.
-#   - Implantacoes identificadas por root_path.
+#   - DEV permite deployment por Service Principal.
+#   - HML e PRD utilizam mode: production.
+#   - root_path fixo para preservar o estado dos deployments.
 #   - Nenhuma credencial armazenada neste arquivo.
-#   - Jobs e pipelines definidos em arquivos separados.
 #
 # OBSERVACAO:
-#   O root_path de DEV preserva o estado do deployment
-#   originalmente criado pela identidade pessoal.
-#   O Service Principal ja possui CAN_MANAGE no diretorio.
+#   DEV utiliza presets explicitos em vez de mode: development.
+#   Isso permite compartilhar o deployment entre identidades
+#   sem a restricao de isolamento individual do development mode.
 # =============================================================================
 
 bundle:
@@ -55,18 +56,25 @@ variables:
     description: "Catalogo dos produtos analiticos"
 
 # =============================================================================
-# AMBIENTES DE IMPLANTACAO
+# TARGETS
 # =============================================================================
 
 targets:
 
   # ---------------------------------------------------------------------------
-  # DEV - DESENVOLVIMENTO
+  # DEV - DESENVOLVIMENTO E AUTOMACAO
   # ---------------------------------------------------------------------------
   dev:
     default: true
-    mode: development
 
+    # Preserva os comportamentos desejados de desenvolvimento,
+    # sem exigir um root_path especifico para cada usuario.
+    presets:
+      pipelines_development: true
+      trigger_pause_status: PAUSED
+      jobs_max_concurrent_runs: 1
+
+    # Mantem o deployment existente e seu estado remoto.
     workspace:
       root_path: /Workspace/Users/michel.laboratorios@gmail.com/.bundle/${bundle.name}/${bundle.target}
 
