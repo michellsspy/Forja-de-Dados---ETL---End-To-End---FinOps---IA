@@ -2,31 +2,38 @@
 # =============================================================================
 # PROJETO: Forja de Dados - ETL End to End - FinOps - IA
 # ARQUIVO: databricks.yml
+#
 # OBJETIVO:
-#   Definir o Databricks Bundle e seus ambientes de implantacao.
+#   Configurar os ambientes DEV, HML e PRD utilizando
+#   Databricks Declarative Automation Bundles.
 #
 # ARQUITETURA:
-#   - Databricks + Unity Catalog
-#   - Lakeflow Declarative Pipelines
+#   - Databricks / Unity Catalog
+#   - Lakeflow Connect
+#   - Lakeflow Spark Declarative Pipelines
 #   - Lakeflow Jobs
-#   - Tabelas Delta gerenciadas
+#   - Delta Lake Managed Tables
 #
-# AMBIENTES:
-#   DEV - Desenvolvimento
-#   HML - Homologacao
-#   PRD - Producao
+# CONTROLE DE VERSAO:
+#   GitHub - Git
 #
 # OBSERVACOES:
-#   - Um unico workspace Databricks.
-#   - Isolamento logico por catalogos e targets.
-#   - Autenticacao gerenciada pela Databricks CLI.
-#   - Recursos Lakeflow serao declarados em arquivos separados.
+#   - Workspace compartilhado entre os tres ambientes.
+#   - Isolamento logico por catalogos Unity Catalog.
+#   - DEV utiliza comportamento de desenvolvimento.
+#   - HML e PRD utilizam comportamento de producao.
+#   - HML e PRD possuem caminhos fixos de implantacao.
+#   - Nenhuma credencial e armazenada neste arquivo.
+#   - Catalogos serao provisionados posteriormente.
 # =============================================================================
 
 bundle:
   name: forja_de_dados
 
-# Catalogos que os recursos utilizarao em cada ambiente.
+# =============================================================================
+# VARIAVEIS GLOBAIS
+# =============================================================================
+
 variables:
   catalog_lakehouse:
     description: "Catalogo das camadas de dados"
@@ -35,14 +42,17 @@ variables:
     description: "Catalogo de controle, qualidade e observabilidade"
 
   catalog_analytics:
-    description: "Catalogo de produtos analiticos"
+    description: "Catalogo dos produtos analiticos"
 
-# Ambientes de implantacao.
+# =============================================================================
+# TARGETS - AMBIENTES
+# =============================================================================
+
 targets:
 
-  # ------------------------------------------------------------
-  # DESENVOLVIMENTO
-  # ------------------------------------------------------------
+  # ---------------------------------------------------------------------------
+  # DEV - DESENVOLVIMENTO
+  # ---------------------------------------------------------------------------
   dev:
     default: true
     mode: development
@@ -52,22 +62,28 @@ targets:
       catalog_platform: forja_platform_dev
       catalog_analytics: forja_analytics_dev
 
-  # ------------------------------------------------------------
-  # HOMOLOGACAO
-  # ------------------------------------------------------------
+  # ---------------------------------------------------------------------------
+  # HML - HOMOLOGACAO
+  # ---------------------------------------------------------------------------
   hml:
     mode: production
+
+    workspace:
+      root_path: /Workspace/Users/michel.laboratorios@gmail.com/.bundle/${bundle.name}/${bundle.target}
 
     variables:
       catalog_lakehouse: forja_lakehouse_hml
       catalog_platform: forja_platform_hml
       catalog_analytics: forja_analytics_hml
 
-  # ------------------------------------------------------------
-  # PRODUCAO
-  # ------------------------------------------------------------
+  # ---------------------------------------------------------------------------
+  # PRD - PRODUCAO
+  # ---------------------------------------------------------------------------
   prd:
     mode: production
+
+    workspace:
+      root_path: /Workspace/Users/michel.laboratorios@gmail.com/.bundle/${bundle.name}/${bundle.target}
 
     variables:
       catalog_lakehouse: forja_lakehouse_prd
