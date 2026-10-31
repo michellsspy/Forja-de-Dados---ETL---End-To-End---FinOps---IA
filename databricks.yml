@@ -1,111 +1,56 @@
-
 # =============================================================================
 # PROJETO: Forja de Dados - ETL End to End - FinOps - IA
 # ARQUIVO: databricks.yml
-#
-# OBJETIVO:
-#   Configurar os ambientes DEV, HML e PRD utilizando
-#   Databricks Declarative Automation Bundles.
-#
-# ARQUITETURA:
-#   - Databricks e Unity Catalog
-#   - Lakeflow Connect
-#   - Lakeflow Spark Declarative Pipelines
-#   - Lakeflow Jobs
-#   - Delta Lake Managed Tables
-#
-# CONTROLE DE VERSAO:
-#   GitHub / GitHub Actions
-#
-# DIRETRIZES:
-#   - Workspace compartilhado entre DEV, HML e PRD.
-#   - Isolamento logico por catalogos Unity Catalog.
-#   - DEV permite deployment por Service Principal.
-#   - HML e PRD utilizam mode: production.
-#   - root_path fixo para preservar o estado dos deployments.
-#   - Nenhuma credencial armazenada neste arquivo.
-#
-# OBSERVACAO:
-#   DEV utiliza presets explicitos em vez de mode: development.
-#   Isso permite compartilhar o deployment entre identidades
-#   sem a restricao de isolamento individual do development mode.
+# OBJETIVO: Definir os alvos DEV/HML/PRD e descobrir recursos Lakeflow.
+# INFRAESTRUTURA: 1 workspace; catálogos UC por ambiente; tabelas gerenciadas.
+# CONTROLE: GitHub; CI/CD com Databricks Declarative Automation Bundles.
+# SEGURANCA: nenhuma credencial neste arquivo; root_path DEV preservado.
+# EXECUCAO: databricks bundle validate -t dev
 # =============================================================================
 
 bundle:
   name: forja_de_dados
 
-# =============================================================================
-# RECURSOS DECLARATIVOS
-# =============================================================================
-
 include:
   - resources/jobs/*.yml
-
-# =============================================================================
-# VARIAVEIS GLOBAIS
-# =============================================================================
+  - resources/pipelines/*.yml
 
 variables:
   catalog_lakehouse:
     description: "Catalogo das camadas de dados"
-
   catalog_platform:
     description: "Catalogo de controle, qualidade e observabilidade"
-
   catalog_analytics:
     description: "Catalogo dos produtos analiticos"
 
-# =============================================================================
-# TARGETS
-# =============================================================================
-
 targets:
-
-  # ---------------------------------------------------------------------------
-  # DEV - DESENVOLVIMENTO E AUTOMACAO
-  # ---------------------------------------------------------------------------
   dev:
     default: true
-
-    # Preserva os comportamentos desejados de desenvolvimento,
-    # sem exigir um root_path especifico para cada usuario.
+    # Sem mode: development porque o deploy e compartilhado com Service Principal.
     presets:
       pipelines_development: true
       trigger_pause_status: PAUSED
       jobs_max_concurrent_runs: 1
-
-    # Mantem o deployment existente e seu estado remoto.
     workspace:
       root_path: /Workspace/Users/michel.laboratorios@gmail.com/.bundle/${bundle.name}/${bundle.target}
-
     variables:
       catalog_lakehouse: forja_lakehouse_dev
       catalog_platform: forja_platform_dev
       catalog_analytics: forja_analytics_dev
 
-  # ---------------------------------------------------------------------------
-  # HML - HOMOLOGACAO
-  # ---------------------------------------------------------------------------
   hml:
     mode: production
-
     workspace:
       root_path: /Workspace/Users/michel.laboratorios@gmail.com/.bundle/${bundle.name}/${bundle.target}
-
     variables:
       catalog_lakehouse: forja_lakehouse_hml
       catalog_platform: forja_platform_hml
       catalog_analytics: forja_analytics_hml
 
-  # ---------------------------------------------------------------------------
-  # PRD - PRODUCAO
-  # ---------------------------------------------------------------------------
   prd:
     mode: production
-
     workspace:
       root_path: /Workspace/Users/michel.laboratorios@gmail.com/.bundle/${bundle.name}/${bundle.target}
-
     variables:
       catalog_lakehouse: forja_lakehouse_prd
       catalog_platform: forja_platform_prd

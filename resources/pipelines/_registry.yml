@@ -1,0 +1,8 @@
+# =============================================================================
+# PROJETO: Forja de Dados - ETL End to End - FinOps - IA
+# ARQUIVO: resources/pipelines/_registry.yml
+# OBJETIVO: Garantir descoberta do diretorio de pipelines pelo Bundle.
+# OBSERVACAO: nenhum Pipeline e criado por este arquivo. Os recursos reais
+#             terao YAML proprio apos o inventario do Lakeflow Connect.
+# =============================================================================
+resources: {}
