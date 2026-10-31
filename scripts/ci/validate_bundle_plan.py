@@ -2,11 +2,11 @@
 
 Projeto: Forja de Dados - ETL End to End - FinOps - IA.
 Arquivo: scripts/ci/validate_bundle_plan.py
-Objetivo: admitir somente criacao/atualizacao de Jobs e Pipelines do DEV.
+Objetivo: validar criacao/atualizacao e aceitar recursos sem mudanca (skip).
 Entradas: caminho para plano JSON gerado por `databricks bundle plan -t dev -o json`.
 Saida: resumo sem credenciais; codigo 0 (aprovado) ou 1 (bloqueado).
-Politica: bloquear delete, tipos nao autorizados, destinos fora de DEV e
-         substituicao do estado remoto por outro deployment.
+Politica: aceitar skip sem alteracoes, bloquear delete, tipos nao autorizados,
+         destinos fora de DEV e estado remoto de outro deployment.
 Execucao: python scripts/ci/validate_bundle_plan.py /caminho/plan.json
 Dependencias: biblioteca padrao Python 3.12+.
 """
@@ -19,7 +19,7 @@ from pathlib import Path
 from typing import Any
 
 RESOURCE_PATTERN = re.compile(r"^resources\.(jobs|pipelines)\.[A-Za-z0-9_]+$")
-ALLOWED_ACTIONS = {"create", "update"}
+ALLOWED_ACTIONS = {"create", "update", "skip"}
 ALLOWED_CATALOGS = {
     "forja_lakehouse_dev", "forja_platform_dev", "forja_analytics_dev"
 }
@@ -47,7 +47,7 @@ def validate_plan(data: dict[str, Any]) -> dict[str, int]:
     if not isinstance(resources, dict):
         raise PlanRejected("Campo plan ausente ou invalido.")
 
-    counts = {"create": 0, "update": 0}
+    counts = {"create": 0, "update": 0, "skip": 0}
     for key, item in resources.items():
         match = RESOURCE_PATTERN.fullmatch(key)
         if not match or not isinstance(item, dict):
@@ -56,6 +56,31 @@ def validate_plan(data: dict[str, Any]) -> dict[str, int]:
         action = item.get("action")
         if action not in ALLOWED_ACTIONS:
             raise PlanRejected(f"{key}: acao '{action}' bloqueada.")
+
+        # Recursos sincronizados podem constar no JSON com action='skip'.
+        # Nao criam, modificam nem removem objetos e nao exigem deploy.
+        if action == "skip":
+            changes = item.get("changes") or {}
+            if not isinstance(changes, dict):
+                raise PlanRejected(f"{key}: changes invalido em skip.")
+            if any(
+                not isinstance(change, dict)
+                or change.get("action") not in (None, "skip")
+                for change in changes.values()
+            ):
+                raise PlanRejected(f"{key}: skip contem alteracoes de campos.")
+
+            remote = item.get("remote_state") or {}
+            planned = (item.get("new_state") or {}).get("value") or {}
+            for state in (remote, planned):
+                if not isinstance(state, dict):
+                    raise PlanRejected(f"{key}: estado invalido em skip.")
+                check_metadata(state, key)
+                if match.group(1) == "pipelines" and state.get("catalog"):
+                    if state["catalog"] not in ALLOWED_CATALOGS:
+                        raise PlanRejected(f"{key}: catalogo nao autorizado em skip.")
+            counts["skip"] += 1
+            continue
 
         new = (item.get("new_state") or {}).get("value")
         if not isinstance(new, dict):
@@ -111,7 +136,8 @@ def main() -> int:
         print(f"PLANO BLOQUEADO: {exc}", file=sys.stderr)
         return 1
     print(f"PLANO APROVADO: {result['create']} criacao(oes), "
-          f"{result['update']} atualizacao(oes), nenhuma exclusao.")
+          f"{result['update']} atualizacao(oes), "
+          f"{result['skip']} recurso(s) sem mudanca (skip), nenhuma exclusao.")
     return 0
 
 
