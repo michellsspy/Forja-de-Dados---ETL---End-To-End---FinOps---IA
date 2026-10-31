@@ -1,0 +1,88 @@
+
+# =============================================================================
+# PROJETO: Forja de Dados - ETL End to End - FinOps - IA
+# ARQUIVO: .github/workflows/auth-dev.yml
+#
+# OBJETIVO:
+#   Validar a autenticacao OAuth M2M entre GitHub Actions
+#   e Databricks, utilizando o Service Principal de DEV.
+#
+# IDENTIDADE:
+#   sp-forja-cicd-dev
+#
+# SEGURANCA:
+#   - Execucao exclusivamente manual.
+#   - Permitida somente na branch main.
+#   - Credenciais obtidas dos GitHub Secrets.
+#   - Nenhum token exibido nos logs.
+#   - Nenhum recurso criado ou modificado.
+#
+# VERSIONAMENTO:
+#   GitHub / Forja de Dados
+# =============================================================================
+
+name: CD - Autenticacao Databricks DEV
+
+# Execucao manual pelo GitHub Actions.
+on:
+  workflow_dispatch:
+
+# Permissao minima no repositorio.
+permissions:
+  contents: read
+
+jobs:
+
+  validar-autenticacao:
+
+    name: Validar OAuth M2M
+
+    runs-on: ubuntu-latest
+
+    timeout-minutes: 10
+
+    # Nao permitir execucao fora da main.
+    if: github.ref == 'refs/heads/main'
+
+    steps:
+
+      # -------------------------------------------------------
+      # 01 - Obter o codigo versionado
+      # -------------------------------------------------------
+      - name: Checkout do repositorio
+        uses: actions/checkout@v4
+
+      # -------------------------------------------------------
+      # 02 - Instalar Databricks CLI
+      # -------------------------------------------------------
+      - name: Instalar Databricks CLI
+        uses: databricks/setup-cli@main
+        with:
+          version: "1.20.0"
+
+      # -------------------------------------------------------
+      # 03 - Validar autenticacao e acesso de leitura
+      # -------------------------------------------------------
+      - name: Testar conexao com Databricks
+        shell: bash
+
+        env:
+          DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
+          DATABRICKS_CLIENT_ID: ${{ secrets.DATABRICKS_CLIENT_ID }}
+          DATABRICKS_CLIENT_SECRET: ${{ secrets.DATABRICKS_CLIENT_SECRET }}
+          DATABRICKS_AUTH_TYPE: oauth-m2m
+
+        run: |
+          set -euo pipefail
+
+          echo "FORJA DE DADOS - TESTE OAUTH M2M"
+
+          test -n "$DATABRICKS_HOST"
+          test -n "$DATABRICKS_CLIENT_ID"
+          test -n "$DATABRICKS_CLIENT_SECRET"
+
+          echo "Verificando acesso aos Jobs..."
+
+          databricks jobs list --output json > /dev/null
+
+          echo "Autenticacao e consulta de Jobs realizadas com sucesso."
