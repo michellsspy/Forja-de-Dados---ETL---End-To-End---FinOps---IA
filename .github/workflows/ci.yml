@@ -1,0 +1,72 @@
+
+# =============================================================================
+# PROJETO: Forja de Dados - ETL End to End - FinOps - IA
+# ARQUIVO: .github/workflows/ci.yml
+#
+# OBJETIVO:
+#   Executar a integracao continua do projeto.
+#
+# RESPONSABILIDADES:
+#   - Preparar o ambiente Python.
+#   - Instalar dependencias de desenvolvimento.
+#   - Validar a sintaxe dos scripts Python.
+#   - Executar os testes automatizados.
+#
+# SEGURANCA:
+#   - Nao utiliza credenciais Databricks.
+#   - Nao realiza deploy.
+#   - Permissoes do GitHub somente para leitura.
+#
+# OBSERVACAO:
+#   A validacao oficial dos Bundles pela Databricks CLI sera
+#   incorporada apos configuracao da autenticacao do CI.
+# =============================================================================
+
+name: CI - Forja de Dados
+
+on:
+  pull_request:
+    branches:
+      - main
+
+  push:
+    branches:
+      - main
+
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validar:
+    name: Validar codigo e configuracoes
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout do repositorio
+        uses: actions/checkout@v4
+
+      - name: Configurar Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements-dev.txt
+
+      - name: Instalar dependencias
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements-dev.txt
+
+      - name: Validar sintaxe Python
+        run: |
+          python -m compileall -q src tests
+
+      - name: Executar testes automatizados
+        run: |
+          python -m pytest tests -v
