@@ -4,26 +4,39 @@
 # ARQUIVO: .github/workflows/deploy-dev.yml
 #
 # OBJETIVO:
-#   Executar o preflight do deployment DEV.
-#   Validar autenticacao, Bundle e plano detalhado de alteracoes.
+#   Realizar o primeiro deployment automatizado em DEV
+#   utilizando GitHub Actions e Databricks Bundles.
 #
 # IDENTIDADE:
 #   sp-forja-cicd-dev
 #
-# SEGURANCA:
-#   - Execucao manual somente na branch main.
-#   - OAuth M2M via GitHub Secrets.
-#   - Nenhum deploy executado.
-#   - Nenhum recurso criado, alterado ou excluido.
+# CONTROLES:
+#   - Execucao manual na branch main.
+#   - Confirmacao explicita DEPLOY_DEV.
+#   - Autenticacao OAuth M2M.
+#   - Validacao do Bundle.
+#   - Verificacao do plano JSON.
+#   - Bloqueio de alteracoes inesperadas.
+#   - Aplicacao do plano aprovado.
+#   - Verificacao do Job apos o deployment.
 #
-# VERSIONAMENTO:
-#   GitHub / GitHub Actions
+# ESCOPO:
+#   Primeiro deployment controlado do job_smoke_deploy.
+#
+# SEGURANCA:
+#   Nenhuma credencial armazenada no codigo.
+#   Nenhum recurso HML ou PRD sera modificado.
 # =============================================================================
 
-name: CD - Preflight Databricks DEV
+name: CD - Deploy Databricks DEV
 
 on:
   workflow_dispatch:
+    inputs:
+      confirmacao:
+        description: "Digite DEPLOY_DEV para autorizar a implantacao"
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -33,13 +46,17 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  preflight-dev:
-    name: Validar plano de implantacao DEV
+  deploy-dev:
+    name: Implantar Bundle DEV
 
-    if: github.ref == 'refs/heads/main'
+    if: >-
+      ${{
+        github.ref == 'refs/heads/main' &&
+        inputs.confirmacao == 'DEPLOY_DEV'
+      }}
 
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
 
     env:
       DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
@@ -56,7 +73,7 @@ jobs:
         uses: actions/checkout@v4
 
       # -----------------------------------------------------------------------
-      # 02 - DATABRICKS CLI
+      # 02 - INSTALAR CLI
       # -----------------------------------------------------------------------
       - name: Instalar Databricks CLI
         uses: databricks/setup-cli@v1.20.0
@@ -64,7 +81,7 @@ jobs:
       # -----------------------------------------------------------------------
       # 03 - AUTENTICACAO
       # -----------------------------------------------------------------------
-      - name: Verificar autenticacao Databricks
+      - name: Validar autenticacao
         shell: bash
         run: |
           set -euo pipefail
@@ -74,7 +91,7 @@ jobs:
           echo "Autenticacao OAuth M2M validada."
 
       # -----------------------------------------------------------------------
-      # 04 - VALIDACAO DO BUNDLE
+      # 04 - VALIDAR BUNDLE
       # -----------------------------------------------------------------------
       - name: Validar Bundle DEV
         shell: bash
@@ -84,36 +101,173 @@ jobs:
           databricks bundle validate -t dev
 
       # -----------------------------------------------------------------------
-      # 05 - INVENTARIO DO DEPLOYMENT
+      # 05 - GERAR E VERIFICAR PLANO
       # -----------------------------------------------------------------------
-      - name: Consultar recursos do Bundle
+      - name: Validar alteracoes permitidas
+        id: plano
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          PLAN_FILE="${RUNNER_TEMP}/forja-dev-plan.json"
+
+          databricks bundle plan -t dev -o json > "$PLAN_FILE"
+
+          python3 - "$PLAN_FILE" <<'PY'
+          """
+          Projeto: Forja de Dados
+
+          Objetivo:
+              Validar as alteracoes autorizadas para o primeiro
+              deployment automatizado do Job DEV.
+
+          Politica:
+              Permitir apenas atualizacao de nome e tags
+              do Job previamente implantado.
+
+          Seguranca:
+              Bloquear criacao, exclusao e alteracoes
+              nao previstas no plano de implantacao.
+          """
+
+          import json
+          import sys
+          from pathlib import Path
+
+          plan_file = Path(sys.argv[1])
+          data = json.loads(plan_file.read_text(encoding="utf-8"))
+
+          expected_key = "resources.jobs.job_smoke_deploy"
+          expected_id = 962077507374725
+          expected_name = "forja_dev_smoke_deploy"
+
+          expected_metadata = (
+              "/Workspace/Users/michel.laboratorios@gmail.com/"
+              ".bundle/forja_de_dados/dev/state/metadata.json"
+          )
+
+          resources = data.get("plan", {})
+
+          if set(resources) != {expected_key}:
+              raise SystemExit(
+                  "BLOQUEADO: plano contem recursos inesperados."
+              )
+
+          resource = resources[expected_key]
+
+          if resource.get("action") != "update":
+              raise SystemExit(
+                  "BLOQUEADO: era esperada uma atualizacao."
+              )
+
+          remote = resource.get("remote_state", {})
+          new = resource.get("new_state", {}).get("value", {})
+
+          if remote.get("job_id") != expected_id:
+              raise SystemExit(
+                  "BLOQUEADO: Job ID diferente do esperado."
+              )
+
+          if new.get("name") != expected_name:
+              raise SystemExit(
+                  "BLOQUEADO: nome de destino inesperado."
+              )
+
+          for state in (remote, new):
+              metadata = (
+                  state.get("deployment", {})
+                  .get("metadata_file_path")
+              )
+              if metadata != expected_metadata:
+                  raise SystemExit(
+                      "BLOQUEADO: estado do Bundle inesperado."
+                  )
+
+          changes = resource.get("changes", {})
+
+          modified = {
+              key
+              for key, value in changes.items()
+              if value.get("action") != "skip"
+          }
+
+          if modified != {"name", "tags"}:
+              raise SystemExit(
+                  "BLOQUEADO: alteracoes diferentes das aprovadas: "
+                  f"{sorted(modified)}"
+              )
+
+          print("Plano aprovado.")
+          print(f"Job existente: {expected_id}")
+          print(f"Alteracoes permitidas: {sorted(modified)}")
+          print("Nenhuma criacao ou exclusao autorizada.")
+          PY
+
+          echo "path=$PLAN_FILE" >> "$GITHUB_OUTPUT"
+
+      # -----------------------------------------------------------------------
+      # 06 - EXECUTAR DEPLOYMENT
+      # -----------------------------------------------------------------------
+      - name: Implantar Bundle DEV
+        shell: bash
+        env:
+          PLAN_FILE: ${{ steps.plano.outputs.path }}
+        run: |
+          set -euo pipefail
+
+          databricks bundle deploy \
+            -t dev \
+            --plan "$PLAN_FILE" \
+            --fail-on-active-runs
+
+          echo "Deployment DEV concluido."
+
+      # -----------------------------------------------------------------------
+      # 07 - VALIDAR DEPLOYMENT
+      # -----------------------------------------------------------------------
+      - name: Verificar Job implantado
         shell: bash
         run: |
           set -euo pipefail
 
           databricks bundle summary -t dev
 
-      # -----------------------------------------------------------------------
-      # 06 - PLANO RESUMIDO
-      # -----------------------------------------------------------------------
-      - name: Gerar plano DEV
-        shell: bash
-        run: |
-          set -euo pipefail
+          databricks jobs get \
+            962077507374725 \
+            --output json \
+            > "${RUNNER_TEMP}/forja-job.json"
 
-          databricks bundle plan -t dev
+          python3 - <<'PY'
+          """
+          Objetivo:
+              Confirmar a preservacao do Job apos o deployment.
 
-      # -----------------------------------------------------------------------
-      # 07 - PLANO DETALHADO
-      # -----------------------------------------------------------------------
-      - name: Inspecionar diferencas do deployment
-        shell: bash
-        run: |
-          set -euo pipefail
+          Validacoes:
+              ID e nome esperado do recurso.
+          """
 
-          echo "FORJA DE DADOS - PLANO DETALHADO DEV"
-          echo "Operacao somente leitura."
+          import json
+          import os
+          from pathlib import Path
 
-          databricks bundle plan -t dev -o json
+          job_file = Path(
+              os.environ["RUNNER_TEMP"]
+          ) / "forja-job.json"
 
-          echo "Inspecao concluida. Nenhum deploy executado."
+          job = json.loads(job_file.read_text(encoding="utf-8"))
+
+          job_id = job.get("job_id")
+          job_name = job.get("settings", {}).get("name")
+
+          assert job_id == 962077507374725, (
+              f"Job ID inesperado: {job_id}"
+          )
+
+          assert job_name == "forja_dev_smoke_deploy", (
+              f"Nome inesperado: {job_name}"
+          )
+
+          print("Deployment validado com sucesso.")
+          print(f"Job ID preservado: {job_id}")
+          print(f"Nome: {job_name}")
+          PY
