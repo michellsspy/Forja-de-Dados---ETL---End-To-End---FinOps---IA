@@ -1,0 +1,14 @@
+
+# =============================================================================
+# PROJETO: Forja de Dados
+# ARQUIVO: requirements-dev.txt
+# OBJETIVO:
+#   Dependencias utilizadas nos testes e validacoes locais e no CI.
+#
+# OBSERVACAO:
+#   Essas dependencias nao sao automaticamente instaladas nos
+#   pipelines Lakeflow do Databricks.
+# =============================================================================
+
+pytest>=8.3,<10
+PyYAML>=6,<7
