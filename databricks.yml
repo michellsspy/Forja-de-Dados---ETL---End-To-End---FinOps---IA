@@ -1,0 +1,75 @@
+
+# =============================================================================
+# PROJETO: Forja de Dados - ETL End to End - FinOps - IA
+# ARQUIVO: databricks.yml
+# OBJETIVO:
+#   Definir o Databricks Bundle e seus ambientes de implantacao.
+#
+# ARQUITETURA:
+#   - Databricks + Unity Catalog
+#   - Lakeflow Declarative Pipelines
+#   - Lakeflow Jobs
+#   - Tabelas Delta gerenciadas
+#
+# AMBIENTES:
+#   DEV - Desenvolvimento
+#   HML - Homologacao
+#   PRD - Producao
+#
+# OBSERVACOES:
+#   - Um unico workspace Databricks.
+#   - Isolamento logico por catalogos e targets.
+#   - Autenticacao gerenciada pela Databricks CLI.
+#   - Recursos Lakeflow serao declarados em arquivos separados.
+# =============================================================================
+
+bundle:
+  name: forja_de_dados
+
+# Catalogos que os recursos utilizarao em cada ambiente.
+variables:
+  catalog_lakehouse:
+    description: "Catalogo das camadas de dados"
+
+  catalog_platform:
+    description: "Catalogo de controle, qualidade e observabilidade"
+
+  catalog_analytics:
+    description: "Catalogo de produtos analiticos"
+
+# Ambientes de implantacao.
+targets:
+
+  # ------------------------------------------------------------
+  # DESENVOLVIMENTO
+  # ------------------------------------------------------------
+  dev:
+    default: true
+    mode: development
+
+    variables:
+      catalog_lakehouse: forja_lakehouse_dev
+      catalog_platform: forja_platform_dev
+      catalog_analytics: forja_analytics_dev
+
+  # ------------------------------------------------------------
+  # HOMOLOGACAO
+  # ------------------------------------------------------------
+  hml:
+    mode: production
+
+    variables:
+      catalog_lakehouse: forja_lakehouse_hml
+      catalog_platform: forja_platform_hml
+      catalog_analytics: forja_analytics_hml
+
+  # ------------------------------------------------------------
+  # PRODUCAO
+  # ------------------------------------------------------------
+  prd:
+    mode: production
+
+    variables:
+      catalog_lakehouse: forja_lakehouse_prd
+      catalog_platform: forja_platform_prd
+      catalog_analytics: forja_analytics_prd
